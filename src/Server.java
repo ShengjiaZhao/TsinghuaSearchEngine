@@ -17,14 +17,14 @@ import java.net.*;
 import java.io.*;
 
 
-public class ImageServer extends HttpServlet{
+public class Server extends HttpServlet{
 	public static final int PAGE_RESULT=10;
 	public static final String indexDir="forIndex";
 	public static final String picDir="";
-	private ImageSearcher search=null;
-	public ImageServer(){
+	private Searcher search=null;
+	public Server(){
 		super();
-		search=new ImageSearcher(new String(indexDir+"/index"));
+		search=new Searcher(new String(indexDir+"/index"));
 		search.loadGlobals(new String(indexDir+"/global.txt"));
 	}
 	

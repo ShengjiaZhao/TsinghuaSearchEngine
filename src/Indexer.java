@@ -18,13 +18,13 @@ import org.apache.lucene.util.Version;
 
 import javax.xml.parsers.*; 
 
-public class ImageIndexer {
+public class Indexer {
 	private Analyzer analyzer; 
     private IndexWriter indexWriter;
     private float averageLength=1.0f;
     private String docPath = "/home/shengjia/heritrix-3.2.0/jobs/JobTest/latest/mirror";
     
-    public ImageIndexer(String indexDir){
+    public Indexer(String indexDir){
     	analyzer = new IKAnalyzer();
     	try{
     		IndexWriterConfig iwc = new IndexWriterConfig(Version.LUCENE_40, analyzer);
@@ -165,7 +165,7 @@ public class ImageIndexer {
     }
     
 	public static void main(String[] args) {
-		ImageIndexer indexer=new ImageIndexer("forIndex/index");
+		Indexer indexer=new Indexer("forIndex/index");
 		indexer.indexFiles();
 		indexer.saveGlobals("forIndex/global.txt");
 	}
