@@ -4,8 +4,8 @@ import java.nio.file.Paths;
 import java.util.*;
 
 public class PageRanker {
-	private List<String> docPaths = null;
-	private List<String> linkPatterns = null;
+	private List<String> docPaths = new ArrayList<String>();
+	private List<String> linkPatterns = new ArrayList<String>();
 	private List<List<Integer>> linkPointers = new ArrayList<List<Integer>>();
 	private List<Double> pageRanks = new ArrayList<Double>();
 	private List<List<Integer>> inlinkPointers = new ArrayList<List<Integer>>();
@@ -44,10 +44,12 @@ public class PageRanker {
 					System.out.print(index + " ");
 				}
 			}
-			System.out.println("--");
+			if (linkPointers.get(docIndex).size() != 0)
+				System.out.println("");
 		}
-		saveLinks();
 		outToInLinks();
+		compute(0.8);
+		saveLinks();
 		return pageRanks;
 	}
 	
@@ -92,7 +94,7 @@ public class PageRanker {
 	private void saveLinks() throws IOException {
 		PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter("PageLink.txt")));
 		for (int docIndex = 0; docIndex < docPaths.size(); docIndex++) {
-			out.print(docIndex + " ");
+			out.print(docIndex + " " + linkPatterns.get(docIndex) + " " + pageRanks.get(docIndex) + " ");
 			for (Integer linkIndex : linkPointers.get(docIndex)) {
 				out.print(linkIndex + " ");
 			}
@@ -103,6 +105,8 @@ public class PageRanker {
 	
 	private void loadLinks() throws IOException {
 		linkPointers.clear();
+		linkPatterns.clear();
+		pageRanks = new ArrayList<Double>();
 		BufferedReader in = new BufferedReader(new FileReader("PageLink.txt"));
 		String str;
 		while ((str = in.readLine()) != null) {
@@ -112,16 +116,26 @@ public class PageRanker {
 				return;
 			}
 			List<Integer> ptrList = new ArrayList<Integer>();
-			for (int ptr = 1; ptr < strList.length; ptr++) {
+			System.out.println(strList.length);
+			for (int ptr = 3; ptr < strList.length; ptr++) {
 				ptrList.add(Integer.parseInt(strList[ptr]));
 			}
+			linkPatterns.add(strList[1]);
 			linkPointers.add(ptrList);
+			inlinkPointers.add(new ArrayList<Integer>());
+			pageRanks.add(Double.parseDouble(strList[2]));
 		}
 		outToInLinks();
 	}
 	
+	private void debugPrint() {
+		for (int index = 0; index < pageRanks.size(); index++) {
+			System.out.println(index + " " + pageRanks.get(index) + " " + linkPatterns.get(index));
+		}
+	}
 	public static void main(String[] args) {
 		PageRanker ranker = new PageRanker();
-		ranker.compute();
+		//ranker.compute(0.8);
+		ranker.debugPrint();
 	}
 }

@@ -76,7 +76,7 @@ public class Searcher {
 		search.loadGlobals("forIndex/global.txt");
 		System.out.println("avg length = "+search.getAvg());
 		
-		TopDocs results=search.searchQuery("������", "htmlText", 100);
+		TopDocs results=search.searchQuery("清华", "htmlText", 100);
 		ScoreDoc[] hits = results.scoreDocs;
 		for (int i = 0; i < hits.length; i++) { // output raw format
 			Document doc = search.getDoc(hits[i].doc);

@@ -8,7 +8,7 @@ import org.w3c.dom.*;
 import org.wltea.analyzer.lucene.IKAnalyzer;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.*;
-import org.apache.lucene.document.Document;
+//import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -16,7 +16,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
 
-import javax.xml.parsers.*; 
+import javax.xml.parsers.*;
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document; 	//Warning: this collides with lucene.document
+
 
 public class Indexer {
 	private Analyzer analyzer; 
@@ -49,82 +53,81 @@ public class Indexer {
 	/** 
 	 * Index all the files in the root directory
 	 */
-    public void indexFiles(){
-		try{
-			File topFolder = new File(docPath);
-			if (!topFolder.exists()) {
-				System.out.println("Document folder doesn't exist");
-				return;
-			} 
-			List<String> linkPatterns = new ArrayList<String>();
-			List<String> linkPaths = new ArrayList<String>();
-			List<String> documentContents = new ArrayList<String>();
-			
-			int fileCount = 0, failCount = 0;
-			averageLength = 0.0f;
-			String[] domains = topFolder.list();
-			for (String domain : domains) {
-				if (fileCount > 1000)
-					break;
-				Stack<String> pathStack = new Stack<String>();
-				pathStack.push("");
-				while (!pathStack.empty()) {
-					String curPath = pathStack.pop();
-					String fullPath = curPath == "" ? docPath + "/" + domain : docPath + "/" + domain + "/" + curPath;
-					File curFile = new File(fullPath);
-					if (!curFile.exists()) {
-						System.out.println("Document " + fullPath + " doesn't exist");
-						return;
+    public void indexFiles() throws Exception {
+		File topFolder = new File(docPath);
+		if (!topFolder.exists()) {
+			System.out.println("Document folder doesn't exist");
+			return;
+		} 
+		List<String> linkPatterns = new ArrayList<String>();
+		List<String> linkPaths = new ArrayList<String>();
+		List<String> documentContents = new ArrayList<String>();
+		List<String> documentTitles = new ArrayList<String>();
+		
+		int fileCount = 0, failCount = 0;
+		averageLength = 0.0f;
+		String[] domains = topFolder.list();
+		for (String domain : domains) {
+			//if (fileCount > 1000)
+			//	break;
+			Stack<String> pathStack = new Stack<String>();
+			pathStack.push("");
+			while (!pathStack.empty()) {
+				String curPath = pathStack.pop();
+				String fullPath = curPath == "" ? docPath + "/" + domain : docPath + "/" + domain + "/" + curPath;
+				File curFile = new File(fullPath);
+				if (!curFile.exists()) {
+					System.out.println("Document " + fullPath + " doesn't exist");
+					return;
+				}
+				if (curFile.isDirectory()) {
+					String[] subFiles = curFile.list();
+					for (String subFile : subFiles) {
+						pathStack.push(curPath == "" ? subFile : curPath + "/" + subFile);
 					}
-					if (curFile.isDirectory()) {
-						String[] subFiles = curFile.list();
-						for (String subFile : subFiles) {
-							pathStack.push(curPath == "" ? subFile : curPath + "/" + subFile);
-						}
-					} else if (curFile.isFile()) {
-						String contentStr = this.addDocument(fullPath);
-						if (contentStr != null) {
-							documentContents.add(contentStr);
-							String linkPattern = curPath.replace("index.html", "").replace("index.htm", "");
-							if (linkPattern.endsWith("/"))
-								linkPattern = linkPattern.substring(0, linkPattern.length() - 1);
-							linkPatterns.add(linkPattern == "" ? domain : domain + "/" + linkPattern);
-							//System.out.println(linkPattern);
-							linkPaths.add(fullPath);
-							fileCount++;
-						} else
-							failCount++;
-						System.out.println("Parsed: " + fileCount + " out of " + (fileCount + failCount) + " files");
-					}
+				} else if (curFile.isFile()) {
+					Document doc = this.addDocument(domain, curPath);
+					if (doc != null) {
+						documentContents.add(doc.text());
+						documentTitles.add(doc.title());
+						String linkPattern = curPath.replace("index.html", "").replace("index.htm", "");
+						if (linkPattern.endsWith("/"))
+							linkPattern = linkPattern.substring(0, linkPattern.length() - 1);
+						linkPatterns.add(linkPattern == "" ? domain : domain + "/" + linkPattern);
+						linkPaths.add(fullPath);
+						fileCount++;
+					} else
+						failCount++;
+					System.out.println("Parsed: " + fileCount + " out of " + (fileCount + failCount) + " files");
 				}
 			}
-			// Compute page rank
-			PageRanker ranker = new PageRanker(linkPaths, linkPatterns);
-			List<Double> ranks = ranker.computePageRank();
-			
-			for (int index = 0; index< linkPaths.size(); index++) {
-				Document document  =   new  Document();
-				Field htmlTextField = new Field("htmlText", documentContents.get(index), Field.Store.YES, Field.Index.ANALYZED);
-				htmlTextField.setBoost(new Float(ranks.get(index)));		// Set this as the page rank value for the webpage
-				String urlPath = "http://" + linkPatterns.get(index);
-				Field urlPathField = new Field("url", urlPath, Field.Store.YES, Field.Index.ANALYZED);
-				System.out.println(urlPath);
-				document.add(htmlTextField);
-				document.add(urlPathField);
-				indexWriter.addDocument(document);
-				averageLength += documentContents.get(index).length();
-			}
-			averageLength /= indexWriter.numDocs();
-			System.out.println("average length = "+averageLength);
-			System.out.println("total "+indexWriter.numDocs()+" documents");
-			indexWriter.close();
-			return;
-		}	catch(Exception e){
-			e.printStackTrace();
-		}			
+		}
+		// Compute page rank
+		PageRanker ranker = new PageRanker(linkPaths, linkPatterns);
+		List<Double> ranks = ranker.computePageRank();
+		
+		for (int index = 0; index< linkPaths.size(); index++) {
+			org.apache.lucene.document.Document document  =  new  org.apache.lucene.document.Document();
+			Field htmlTextField = new Field("htmlText", documentContents.get(index), Field.Store.NO, Field.Index.ANALYZED);
+			htmlTextField.setBoost(new Float(ranks.get(index)));		// Set this as the page rank value for the webpage
+			Field docTitleField = new Field("title", documentTitles.get(index), Field.Store.YES, Field.Index.ANALYZED);
+			docTitleField.setBoost(new Float(ranks.get(index) * 2));
+			String urlPath = "http://" + linkPatterns.get(index);
+			Field urlPathField = new Field("url", urlPath, Field.Store.YES, Field.Index.ANALYZED);
+			document.add(htmlTextField);
+			document.add(docTitleField);
+			document.add(urlPathField);
+			indexWriter.addDocument(document);
+			averageLength += documentContents.get(index).length();
+		}
+		averageLength /= indexWriter.numDocs();
+		System.out.println("average length = "+averageLength);
+		System.out.println("total "+indexWriter.numDocs()+" documents");
+		indexWriter.close();
 	}
     
-    private String addDocument(String fullPath) throws IOException {
+    private Document addDocument(String domain, String path) throws IOException {
+		String fullPath = path == "" ? docPath + "/" + domain : docPath + "/" + domain + "/" + path;
 		if (!new File(fullPath).isFile()) {
 			System.out.println("Unexpected missing file " + fullPath);
 			return null;
@@ -144,17 +147,20 @@ public class Indexer {
 				encoding = "GBK";
 			} else if (encodingStr.equalsIgnoreCase("utf") ||
 					encodingStr.equalsIgnoreCase("utf8")) {
-				encoding = "UTF8";
+				encoding = "UTF-8";
 			} else {
 				return null;
 			}
 		} else {
 			return null;
 		}
-		if (encoding != "STRANGE")
-			return "";
 		//System.out.println(encoding);
-		
+		File input = new File(fullPath); 
+		Document doc = Jsoup.parse(input, encoding, "http://" + domain);
+		return doc;
+		//return doc.text();
+
+		/*
 		BufferedReader in = new BufferedReader(new InputStreamReader(
 					new FileInputStream(fullPath), encoding));
 		String totalStr = "", str;
@@ -180,11 +186,16 @@ public class Indexer {
 		}
 		in.close();
 		return totalStr;
+		*/
     }
     
 	public static void main(String[] args) {
 		Indexer indexer=new Indexer("forIndex/index");
-		indexer.indexFiles();
+		try {
+			indexer.indexFiles();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		indexer.saveGlobals("forIndex/global.txt");
 	}
 }
