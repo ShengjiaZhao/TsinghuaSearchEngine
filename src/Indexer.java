@@ -56,10 +56,16 @@ public class Indexer {
 				System.out.println("Document folder doesn't exist");
 				return;
 			} 
+			List<String> linkPatterns = new ArrayList<String>();
+			List<String> linkPaths = new ArrayList<String>();
+			List<String> documentContents = new ArrayList<String>();
+			
 			int fileCount = 0, failCount = 0;
 			averageLength = 0.0f;
 			String[] domains = topFolder.list();
 			for (String domain : domains) {
+				if (fileCount > 1000)
+					break;
 				Stack<String> pathStack = new Stack<String>();
 				pathStack.push("");
 				while (!pathStack.empty()) {
@@ -76,13 +82,37 @@ public class Indexer {
 							pathStack.push(curPath == "" ? subFile : curPath + "/" + subFile);
 						}
 					} else if (curFile.isFile()) {
-						if (this.addDocument(domain, curPath))
+						String contentStr = this.addDocument(fullPath);
+						if (contentStr != null) {
+							documentContents.add(contentStr);
+							String linkPattern = curPath.replace("index.html", "").replace("index.htm", "");
+							if (linkPattern.endsWith("/"))
+								linkPattern = linkPattern.substring(0, linkPattern.length() - 1);
+							linkPatterns.add(linkPattern == "" ? domain : domain + "/" + linkPattern);
+							//System.out.println(linkPattern);
+							linkPaths.add(fullPath);
 							fileCount++;
-						else
+						} else
 							failCount++;
 						System.out.println("Parsed: " + fileCount + " out of " + (fileCount + failCount) + " files");
 					}
 				}
+			}
+			// Compute page rank
+			PageRanker ranker = new PageRanker(linkPaths, linkPatterns);
+			List<Double> ranks = ranker.computePageRank();
+			
+			for (int index = 0; index< linkPaths.size(); index++) {
+				Document document  =   new  Document();
+				Field htmlTextField = new Field("htmlText", documentContents.get(index), Field.Store.YES, Field.Index.ANALYZED);
+				htmlTextField.setBoost(new Float(ranks.get(index)));		// Set this as the page rank value for the webpage
+				String urlPath = "http://" + linkPatterns.get(index);
+				Field urlPathField = new Field("url", urlPath, Field.Store.YES, Field.Index.ANALYZED);
+				System.out.println(urlPath);
+				document.add(htmlTextField);
+				document.add(urlPathField);
+				indexWriter.addDocument(document);
+				averageLength += documentContents.get(index).length();
 			}
 			averageLength /= indexWriter.numDocs();
 			System.out.println("average length = "+averageLength);
@@ -94,16 +124,15 @@ public class Indexer {
 		}			
 	}
     
-    private boolean addDocument(String domain, String path) throws IOException {
-		String fullPath = docPath + "/" + domain + "/" + path;
+    private String addDocument(String fullPath) throws IOException {
 		if (!new File(fullPath).isFile()) {
 			System.out.println("Unexpected missing file " + fullPath);
-			return false;
+			return null;
 		}
 		Pattern p = Pattern.compile(".*\\.(htm|html)");
-		Matcher m = p.matcher(path);
+		Matcher m = p.matcher(fullPath);
 		if (!m.find()) {
-			return false;
+			return null;
 		} 
     	p = Pattern.compile("charset\\s*=\\s*([0-9a-zA-Z]+)");
 		m = p.matcher(new String(Files.readAllBytes(Paths.get(fullPath))));
@@ -117,19 +146,19 @@ public class Indexer {
 					encodingStr.equalsIgnoreCase("utf8")) {
 				encoding = "UTF8";
 			} else {
-				return false;
+				return null;
 			}
 		} else {
-			return false;
+			return null;
 		}
+		if (encoding != "STRANGE")
+			return "";
 		//System.out.println(encoding);
 		
 		BufferedReader in = new BufferedReader(new InputStreamReader(
 					new FileInputStream(fullPath), encoding));
 		String totalStr = "", str;
 		while ((str = in.readLine()) != null) {
-			//System.out.println(str);
-			//System.out.println(str.length());
 			if (str.length() > 50000) {
 				continue;
 			}
@@ -150,18 +179,7 @@ public class Indexer {
 			}
 		}
 		in.close();
-		//System.out.println(totalStr);
-		Document document  =   new  Document();
-		Field htmlTextField = new Field("htmlText" , totalStr ,Field.Store.YES, Field.Index.ANALYZED);
-		htmlTextField.setBoost(1.0f);		// Set this as the page rank value for the webpage
-		String urlPath = "http://" + domain + "/" + path;
-		Field urlPathField = new Field("url", urlPath, Field.Store.YES, Field.Index.ANALYZED);
-		System.out.println(urlPath);
-		document.add(htmlTextField);
-		document.add(urlPathField);
-		indexWriter.addDocument(document);
-		averageLength += totalStr.length();
-		return true;
+		return totalStr;
     }
     
 	public static void main(String[] args) {
