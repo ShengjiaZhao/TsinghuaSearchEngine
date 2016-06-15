@@ -70,7 +70,7 @@ public class Server extends HttpServlet{
 						Document doc = search.getDoc(hits[i].doc);
 						System.out.println("doc=" + hits[i].doc + " score="
 								+ hits[i].score + " urlPath= "
-								+ doc.get("url")+ " title= "+doc.get("title"));
+								+ doc.get("url")+ " title= "+doc.get("titlet"));
 						title[i] = doc.get("title");
 						paths[i] = doc.get("url");
 					}
