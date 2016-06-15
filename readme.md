@@ -14,3 +14,7 @@
 ## 主要工作
 * 搭建了MyEclipse+Tomcat7基本框架
 * 处理了HTTP Get请求，返回相应搜索结果
+
+## 运行截图
+![alt text](https://github.com/ShengjiaZhao/TsinghuaSearchEngine/blob/master/graphs/query_example.png)
+
